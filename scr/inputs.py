@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Wed Apr 12 13:16:58 2017
@@ -45,13 +45,9 @@ maxt= -1
 
 # 1.6) Area of interest for SECS interpolation
 secswest, secseast, secssouth, secsnorth = -15, 15, 43, 65  
-"""
-# 1.7) Only for Approach #2
-# 1.7.1) Ref. magnetic site - regional signal (Approach #2)
-reg_ref = 'CLF' 
-"""
-# 1.7.2) Ref. magnetic sites to compute e_fields (Approach #2)    
-#rmf = ['HAD', 'BIR']
+
+# 1.7) Ref. magnetic sites to compute e_fields (Approach #2)    
+
 
 rmf=np.loadtxt(main_path +'in/Observatories.dat', usecols=[0], dtype='str')
  
@@ -94,9 +90,7 @@ in_path = main_path + 'in/'
 
 # 2.3.5) Folder with output parameters
 out_path = main_path + 'out/'
-
-# 2.3.6) Folder with electromagnetic transfer functions
-tf_path = main_path + 'in/data/TF/'#+'no_correction_galvanic_distortion/'                                  
+                          
 
 # 2.3.7) Folder with inputs - outputs for SECS interpolation
 secs_path =  out_path + 'SECS/'
@@ -113,4 +107,8 @@ sit_f = 'sites_interest2.dat'
 correction_c=np.loadtxt(main_path+'scr/corrections.csv',usecols=0)
 
 #2.6 Length of the video (1 frame = 1 minute)
-video_length=2000 #no of frames(minutes) for video
+video_length=800 #no of frames(minutes) for video
+
+#2.7 Mode of electric field map plots
+
+p_mode='efield' #options are 'efield', 'galvanic' 'std', 'galvanicstd' std=standard devaiation
