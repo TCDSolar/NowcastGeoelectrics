@@ -24,7 +24,7 @@ o timedatez - converts columns with date and time to datetime object
 o scr_fft - Calculates fourier transform with time series
 o read_co - read coordinates from file
 o read_rmfb - reads magnetics data sved from SECS interpolation
-o save_magnetics - save magnetometer data from MagIE website
+o save_magnetics - save magnetometer data directly from MagIE website
 o nan_helper - deals with nans in time series
 o mag_filter - Filters out noisy mag data, converts to nans
 o minute_bin - bin data from second to minute data
