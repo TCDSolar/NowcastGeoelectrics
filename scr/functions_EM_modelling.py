@@ -12,7 +12,7 @@ Fucntions loaded in by EM_modelling.py
 
 
 
-Set input magnetometer sites in observatories.dat
+Set input magnetometer sites in/observatories.dat
 Set input MT sites in in/sites_interest.dat
 
 
