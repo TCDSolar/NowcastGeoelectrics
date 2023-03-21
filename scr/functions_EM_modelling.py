@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on April 2017 - Joan Campanya
@@ -932,7 +932,7 @@ def read_magnetics( in_path, sites, mag_path, secs_path, samp, hi, low,
         print('rmf',rmf)
         website="https://data.magie.ie/"
         file=urllib.request.URLopener()
-        save_folder=r'C:\Users\Dunsink\Documents\Python Scripts\Geo_Electrics_realtime_houdini/Data/'
+        save_folder=in_path+'/Data/'
         
         for i in range(0,3):
             day_str="%02d" %(nowz.day-i)
@@ -1075,18 +1075,14 @@ def read_magnetics( in_path, sites, mag_path, secs_path, samp, hi, low,
 
         ################################################################
         #removing first day to reduce run time
-        #only keeping last 2 hours of first day for interpolation
-        #To reduce runspeed
-        #dif_bx = dif_bx[1440-120:-1]
-        #dif_by = dif_by[1440-120:-1]
-        
+
         dif_bx=np.array(dif_bx)
         dif_by=np.array(dif_by)
 
         last_bx=np.array(dif_bx[-1])
         last_by=np.array(dif_by[-1])  
         #zero-end padding
-        #change third fifgure to chnage length
+        #change third fifgure to change length
         flatbx=np.linspace(last_bx,0,105)
         flatby=np.linspace(last_by,0,105)
         #zero padding at end  of series
