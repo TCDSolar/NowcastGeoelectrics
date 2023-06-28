@@ -17,7 +17,7 @@ ffmpy
 cv2 
 os
 
-#Optional Packages
+# Optional Packages
 
 osgeo
 seaborn
@@ -26,6 +26,6 @@ fiona
 gdal
 
 
-#Nowcating Geoelectric Fields
+# Nowcasting Geoelectric Fields
 
 Python scripts are found in the "scr" folder. Run the "nowcast_model.py" to run the nowcast geoelectric field model. This scripts pulls functions in from a) "functions_EM_modelling.py" to calculate the nowcast geoelectric field and read in inputs, b) "SECS_interpolation.py" to estimate the magnetic field conditions, c) "mapping_geo_library.py" to plot the mapped data d) "secs_pre.py"  calculates spheric elementary current systems. Inputs can be adjusted in "inputs.py"
