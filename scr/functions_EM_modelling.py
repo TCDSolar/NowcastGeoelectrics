@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
 Created on April 2017 - Joan Campanya
@@ -12,7 +12,7 @@ Fucntions loaded in by EM_modelling.py
 
 
 
-Set input magnetometer sites in/observatories.dat
+Set input magnetometer sites in observatories.dat
 Set input MT sites in in/sites_interest.dat
 
 
@@ -24,7 +24,7 @@ o timedatez - converts columns with date and time to datetime object
 o scr_fft - Calculates fourier transform with time series
 o read_co - read coordinates from file
 o read_rmfb - reads magnetics data sved from SECS interpolation
-o save_magnetics - save magnetometer data directly from MagIE website
+o save_magnetics - save magnetometer data from MagIE website
 o nan_helper - deals with nans in time series
 o mag_filter - Filters out noisy mag data, converts to nans
 o minute_bin - bin data from second to minute data
@@ -39,6 +39,7 @@ using secs as inputs
 
 
 """
+from scipy import interpolate
 import numpy as np
 import scipy.signal
 import seaborn as sns
@@ -50,8 +51,18 @@ import datetime
 from time import strptime
 import urllib
 import matplotlib.pyplot as plt
-
-
+import time
+import os
+from os.path import isfile, join
+import cv2
+import ffmpy
+import matplotlib.gridspec as gridspec
+import mapping_geo_library as mpl
+from mpl_toolkits.basemap import Basemap
+import matplotlib
+from scipy.interpolate import griddata
+import scipy.ndimage as ndimage
+import matplotlib.dates as mdates
 
 sns.set()
 def time2float(x):
@@ -932,7 +943,7 @@ def read_magnetics( in_path, sites, mag_path, secs_path, samp, hi, low,
         print('rmf',rmf)
         website="https://data.magie.ie/"
         file=urllib.request.URLopener()
-        save_folder=in_path+'/Data/'
+        save_folder=r'C:\Users\Dunsink\Documents\Python Scripts\Geo_Electrics_realtime_houdini/Data/'
         
         for i in range(0,3):
             day_str="%02d" %(nowz.day-i)
@@ -1075,14 +1086,18 @@ def read_magnetics( in_path, sites, mag_path, secs_path, samp, hi, low,
 
         ################################################################
         #removing first day to reduce run time
-
+        #only keeping last 2 hours of first day for interpolation
+        #To reduce runspeed
+        #dif_bx = dif_bx[1440-120:-1]
+        #dif_by = dif_by[1440-120:-1]
+        
         dif_bx=np.array(dif_bx)
         dif_by=np.array(dif_by)
 
         last_bx=np.array(dif_bx[-1])
         last_by=np.array(dif_by[-1])  
         #zero-end padding
-        #change third fifgure to change length
+        #change third fifgure to chnage length
         flatbx=np.linspace(last_bx,0,105)
         flatby=np.linspace(last_by,0,105)
         #zero padding at end  of series
@@ -1142,6 +1157,7 @@ def read_magnetics( in_path, sites, mag_path, secs_path, samp, hi, low,
 
 
 ##########################################################################
+'''
 def error_secs_interpolation(e_lat, e_lon, in_path, mode, obs):
 
     """ Compute the errors caused by SECS interpolation (based on Figure 7, 
@@ -1181,6 +1197,8 @@ def error_secs_interpolation(e_lat, e_lon, in_path, mode, obs):
     error_bf = 1.0/np.sqrt([10**(snr/10)])
     
     return(error_bf)
+'''
+
 def compute_e_fields_secs(sb, tf_path, e_site, samp, hi, low, error_bf,
                           ef_tf, e_nvpwa, stat):
 
@@ -1479,3 +1497,956 @@ def compute_e_fields_secs(sb, tf_path, e_site, samp, hi, low, error_bf,
     std_ey = np.array(np.copy(ey_s))
 
     return (tf_ex, tf_ey, std_ex, std_ey)
+
+def error_secs_interpolation(e_lat, e_lon, in_path, mode, obs):
+
+    """ Compute the errors caused by SECS interpolation (based on Figure 7, 
+        Campanya et al 2018)
+		
+		Parameters
+		-----------
+         e_lat = latitude sites to compute electric fields
+         e_lon = longitude sites to compute magnetic fields
+         in_path = Folder with input parameters
+         mode = (1) for Approach #1 and (2) for Approach #2
+         obs_f = Name of the file with name and coordinated of the 
+                 magnetic observatories
+
+		Returns
+		-----------
+         error_bf = error associated with the SECS interpolation approach
+		-----------------------------------------------------------------
+	"""
+    
+    # Compute the distance of each site to the magnetic observatories
+
+    Obs, Obs_lat, Obs_lon = read_co(in_path + str(obs))
+    dist = np.zeros(len(Obs))
+
+    for i in range(0,len(Obs)):
+        coo_a = (e_lat, e_lon)
+        coo_b = (Obs_lat[i], Obs_lon[i])        
+        dist[i] = geopy.distance.geodesic(coo_a, coo_b).km
+    
+    if mode == 1: # Approach 1   
+        snr = -1.75e-2 * dist.min() + 12.81                         
+
+    if mode == 2: # Approach 2
+        snr = -1.48e-2 * dist.min() + 9.70
+    # Compute the error                             
+    error_bf = 1.0/np.sqrt([10**(snr/10)])
+    
+    return(error_bf)
+
+def video_prep(pathIn,pathIn2):
+    """
+    This module prepares the video by:
+        o removing old images from video folder
+        o Copying new images to video folder
+    """
+    #pathIn=main_path+'\Video/'
+    files = [f for f in sorted(os.listdir(pathIn)) if isfile(join(pathIn, f))]
+    
+    for i in files:
+        os.remove(pathIn+i)#removing previous files
+    #pathIn2=r'C:\Users\johnn\OneDrive\Documents\Geo_Electrics_realtime_houdini\latest_efield/'
+    files2=[f for f in sorted(os.listdir(pathIn2)) if isfile(join(pathIn2, f))]
+
+
+
+
+
+def convert_frames_to_video(pathIn,pathOut,fps):
+    """
+    This module loads in images of realtime geoelectric fields and converts to video
+
+    Returns
+    -------
+    """
+    frame_array = []
+    files = [f for f in sorted(os.listdir(pathIn)) if isfile(join(pathIn, f))]
+
+    #for sorting the file names properly
+    #files.sort(key = lambda x: int(x[5:-4]))
+
+    for i in range(len(files)):
+        filename=pathIn + files[i]
+        #reading each files
+        img = cv2.imread(filename)
+        height, width, layers = img.shape
+        size = (width,height)
+        #print(filename)
+        #inserting the frames into an image array
+        frame_array.append(img)
+    #print(files)
+    out = cv2.VideoWriter(pathOut,cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
+
+    for i in range(len(frame_array)):
+        # writing to a image array
+        out.write(frame_array[i])
+    out.release()
+def file_remover(pathIn):
+    #removes file from image folder after video made
+    files = [f for f in sorted(os.listdir(pathIn)) if isfile(join(pathIn, f))]
+    
+    for i in files:
+        os.remove(pathIn+i)#removing previous files   
+def video_maker(main_path):
+    """
+    This module controls each of the phases of loading the video
+    o Cleaning save folder
+    o Creating the video
+
+    """
+    
+    print('Generating Video')
+    #making geoelectric field videos
+    pathIn=main_path+'latest_efield/'
+    pathIn2=main_path+'\latest_efield/'
+    #print(main_path)
+    pathOut=main_path+'\\geoelectric_realtimefast.mp4'
+    fps = 7.5
+    #video_prep(pathIn,pathIn2)
+    convert_frames_to_video(pathIn, pathOut, fps)
+    time.sleep(5)
+    file_remover(main_path+'latest_efield/')
+
+
+
+
+def video_fixer(main_path):
+    """
+    This module fixes the formatting of the video, to ensure a mp4 file
+    friendly for all devices
+    
+    Does this by using ffmpeg to read in each frame of video and reconvert to mp4
+
+    """
+    pathOut=main_path+'geoelectric_realtimefast.mp4'
+    pathOut2=main_path+'geoelectric_realtimefast2.mp4'
+    #First video created
+    #Now changing to a website friendly format
+    #DON'T TAKE OUT
+    
+    
+    #Two videos need to be named differently, as it runs frame by frame.
+        #-y added to allow overwriting of files
+    ff=ffmpy.FFmpeg(inputs={pathOut:'-y'},outputs={pathOut2:None})
+
+    
+    ff.run()
+    
+def nowcast_mapping(in_path,main_path,DATE,HOUR,p_mode,av_e_fields,
+                            video_length,e_site,correction_c,std_error,
+                            mh_obs,total_activity,padding,rmf):
+    #inputting coordinates of sites
+    heat_coord_path=in_path+'sites_interest2.csv'
+    #inputing map of ireland
+    #will plot using geopandas
+    shp_path_IRL = in_path + 'data/Ireland_N&S.shp' 
+    df_c = mpl.inputs.read_coordinates(heat_coord_path, 
+                                       lon_head = 'lon',
+                                       lat_head = 'lat'
+                                       )
+    #inputting coordinates of latitude and longitude for sites
+    lon=df_c.iloc[:,3]
+    lat=df_c.iloc[:,4]
+    
+    
+    (xmin, 
+      xmax, 
+      ymin, 
+      ymax, 
+      r_cell_size, 
+      alpha_v,
+      title1) = mpl.inputs.get_predefined_regional_parameters('Ireland')
+    fig = plt.figure(figsize=(8, 8)) 
+    # gs = gridspec.GridSpec(1, 
+                           # 2, 
+                           # width_ratios=[4, 1], 
+                           # wspace = 0.4
+                           # ) 
+    
+    ax1 = plt.subplot()
+    #ax1 = plt.subplot(gs[0])
+    #ax2 = plt.subplot(gs[1])
+    dates=[]
+    for i in range(0,len(DATE)):
+        dates.append(DATE[i]+HOUR[i])
+    dtim=[datetime.datetime.strptime(x, '%d/%m/%Y%H:%M:%S') for x in dates]
+    #dtim=[datetime.datetime.strptime(x, '%Y-%m-%d%H:%M:%S.000') for x in dates]
+    #set to '%Y-%m-%d%H:%M:%S.000' for INTERMAG
+    
+    save=10000
+    
+    
+    fig = plt.figure(figsize=(8, 8)) 
+    gs = gridspec.GridSpec(2, 
+                           1, 
+                           height_ratios=[4, 1], 
+                           wspace = 0.4
+                           ) 
+    
+    #ax1 = plt.subplot()
+    ax1 = plt.subplot(gs[0])
+    ax2 = plt.subplot(gs[1]) 
+    
+    mpl.imaging.create_background_map(fig,
+                                  ax1,
+                                  shp_path_IRL, 
+                                  xmin, 
+                                  xmax, 
+                                  ymin, 
+                                  ymax, 
+                                  title1, 
+                                  )
+
+    length3=10000
+    #reset second to 10000
+    #was 11200
+    #for diff in range(12000,10000+len(av_e_fields)-105):
+    end_index=10000+len(av_e_fields)-padding #the index for rea1time e fields 
+    
+    if end_index-10000-video_length<0:
+        print('Error, video length set too high')
+    
+    #now creating images of realtime geoelectric fields
+    #loading each point in backwards
+    for diff in range(end_index-video_length,end_index-1): #remove -105???
+        
+        fig = plt.figure(figsize=(8, 8)) 
+        gs = gridspec.GridSpec(2, 
+                               1, 
+                               height_ratios=[4, 1], 
+                               wspace = 0.4
+                               ) 
+        
+        #ax1 = plt.subplot()
+        ax1 = plt.subplot(gs[0])
+        ax2 = plt.subplot(gs[1])   
+        
+        fig = plt.figure(figsize=(8, 8)) 
+        gs = gridspec.GridSpec(2, 
+                               1, 
+                               height_ratios=[4, 1], 
+                               wspace = 0.4
+                               ) 
+        
+        #ax1 = plt.subplot()
+        ax1 = plt.subplot(gs[0])
+        ax2 = plt.subplot(gs[1]) 
+        #ax1.set_facecolor('gray')
+        #Comment in for arrow plots
+        #fig4=plt.figure(figsize=(2.5,2.5))
+        #ax4=plt.subplot()
+        
+        mpl.imaging.create_background_map(fig,
+                                      ax1,
+                                      shp_path_IRL, 
+                                      xmin, 
+                                      xmax, 
+                                      ymin, 
+                                      ymax, 
+                                      title1, 
+                                      )    
+        #ax1.set_facecolor('gray')
+        #'Ortho is ortho
+        
+        #m= Basemap(projection='ortho',lat_0=45,lon_0=0,resolution='h')
+        
+        diff_time=1*(diff-10000)#+1400    
+    
+        e_val_list=[]
+    
+        #adding corretion curve to end of electrics time series
+        #correction ordered from last to first, use -i
+    
+    
+        for vi, ppi in enumerate(e_site):
+            # Total electric field
+        
+            ex_plot = av_e_fields[:,vi,0]
+            ey_plot = av_e_fields[:,vi,1]
+            
+            #correction_c=np.loadtxt(main_path+'scr/corrections.csv',usecols=0)
+            ex_plot_ex=[]
+            ey_plot_ey=[]
+            l=1
+            
+            for i in range(0,len(ex_plot)-105,1): #within range where ex is real
+                if i>(len(ex_plot)-105-len(correction_c)):
+                    ex_plot_ex.append(ex_plot[i]*correction_c[-l]) 
+                    ey_plot_ey.append(ey_plot[i]*correction_c[-l])
+                    l=l+1
+                else:
+                    #when no correction is applied
+                    ex_plot_ex.append(ex_plot[i])
+                    ey_plot_ey.append(ey_plot[i])
+            ex_plot=ex_plot_ex
+            ey_plot=ey_plot_ey
+            ex_plot2=std_error[:,vi,0]
+            ey_plot2=std_error[:,vi,1]
+            #last 105 are fake values from flatline
+            ex_val=ex_plot[diff_time]
+            ey_val=ey_plot[diff_time]
+            
+    
+                
+            #uncomment for std
+            #ex_val=ex_plot2[-165-diff_time]#/ex_plot[-165-diff_time]
+            #ey_val=ey_plot2[-165-diff_time]#/ey_plot[-165-diff_time]
+            
+            e_val=np.sqrt(ex_val**2+ey_val**2)
+            lon_site=[lon[vi]]
+            lat_site=[lat[vi]]
+            
+        
+            
+            
+            #Creating fixed length vectors for plot
+            if ex_val>=0 :
+                
+                xlen=1/(np.sqrt(1+(ex_val/ey_val)**2))
+                
+                
+            
+            if ex_val < 0:
+                
+                
+                
+                xlen=-1.0/(np.sqrt(1+(ex_val/ey_val)**2))
+                
+                
+            if ey_val>=0:
+                
+                
+                
+                ylen=1/(np.sqrt(1+(ey_val/ex_val)**2))    
+                
+            
+            if ey_val < 0:
+                
+                
+                ylen=-1.0/(np.sqrt(1+(ey_val/ex_val)**2))
+        
+        
+            
+            arrow_max=200
+            length=np.log(e_val)/np.log(arrow_max)
+            
+            if length<-1:
+                length=0
+            
+            if length>1:
+                length=1
+            
+            dx=25000*xlen*length   #sets length of arrow
+            dy=25000*ylen*length
+            
+            #arrows now added
+            #-------------------------------------------------------------------------
+            
+            linewidth=1
+            head_width=10000 #15000
+            head_length=6600 #10000
+            s=400
+            cm = plt.cm.get_cmap('viridis',10)  
+            #'OrRd'seismic is good also
+            #use ,10 to segment into 10 pieces
+            normalizedB = matplotlib.colors.LogNorm(vmin=5, vmax=10**3)
+            #setting min & max for colorbar, as min max of B_field
+            #setting colours of points to change as B_field_new changes
+            e_val=(ex_val**2+ey_val**2)**(1/2)
+            if e_val <0.01:
+                e_val=0.01 #Log Colourmap doesnt work with 0's
+            e_val_list.append(e_val)
+            colors2=cm(normalizedB(e_val))
+        
+        
+            ax1.scatter(lon_site,lat_site,s=5,color='white',edgecolor='white',zorder=10)
+            #Setting limit over which arrows are drwan
+            if p_mode=='galvanic' or p_mode=='efield':
+                arrow_thres=20
+            if p_mode=='std' or p_mode=='galvanicstd':
+                arrow_thres=100000000000000 #no arrow will be plotted
+            if e_val>20: #set to >1000 to turn off for std
+                ax1.arrow(lon_site[0],lat_site[0],dx,dy,fc="white", ec="white", 
+                          linewidth = linewidth, head_width=head_width,
+                          head_length=head_length,zorder=10)   
+                #include for arrows direction plot
+                
+                #ax4.arrow(0,0,xlen*length,ylen*length,fc="black", ec="black", 
+                #      linewidth = linewidth,
+                #      zorder=10)  
+            #plt.xlim([-1,1])
+            #plt.ylim([-1,1])
+            #plt.savefig('Arrowplot.png')
+    
+        
+        # # create_background figure with map location
+        '''
+        mpl.imaging.create_background_map(fig,
+                                          ax1,
+                                          shp_path_IRL, 
+                                          xmin, 
+                                          xmax, 
+                                          ymin, 
+                                          ymax, 
+                                          title1, 
+                                          )'''
+        numcols, numrows = 1000, 1000
+        xi = np.linspace(lon.min(), lon.max(), numcols)
+        yi = np.linspace(lat.min(), lat.max(), numrows)
+        xi, yi = np.meshgrid(xi, yi)    
+        
+        z=np.array(e_val_list)
+        f = interpolate.interp2d(lon, lat, z, kind='cubic')
+        
+        x2=np.arange(400000,900000,100000)
+        y2=np.arange(500000,1100000,120000)
+        z=f(lon,lat)
+        
+        xi = np.linspace(x2.min(), x2.max(), 50)
+        yi = np.linspace(y2.min(), y2.max(), 50)
+        
+        x,y,z=lon,lat,z
+        xi, yi = np.meshgrid(xi, yi)
+        z2=[]
+        for i in e_val_list:
+            z2.append(np.log(abs(i)))
+        #log value first before, causes probs otherwise
+        
+        
+        zi = griddata((x, y), z2, (xi, yi),method='cubic')
+    
+        nans, x = nan_helper(zi)
+        zi[nans]= np.interp(x(nans), x(~nans), zi[~nans])
+        #contourf handles cubic in mpl.preprocess below
+        
+        zi= ndimage.gaussian_filter(zi, 
+                                   sigma=5.0, 
+                                   order=0)
+        
+        mask_rain = mpl.pre_processing.generate_mask(zi, 
+                                                     xi, 
+                                                     yi, 
+                                                     shp_path_IRL
+                                                     )
+        var_1 = mpl.imaging.plot_background_data(fig,
+                                                 ax1, 
+                                                 xi, 
+                                                 yi, 
+                                                 zi, 
+                                                 mask_rain,
+                                                 vmin = 1.6,
+                                                 vmax = 6.9,
+                                                 cmap = cm
+                                                 )   
+    
+        #plotting map
+        #fig, ax = plt.subplots() #needed to name plots
+        fontsize=11
+        plt.rc('font', size=11)
+        ax1.set_facecolor('#8A959B')
+        ax1.axes.get_xaxis().set_visible(False)
+        ax1.axes.get_yaxis().set_visible(False)
+        plt.grid(False)
+    
+        DATE2=[]
+        HOUR2=[]
+        for i in range(0,len(DATE),60):
+            DATE2.append(DATE[i])
+            HOUR2.append(HOUR[i])
+        try:
+            ax1.set_title(''+str(DATE2[diff_time])+' '+str(HOUR2[diff_time][0:6])+'00 UT')
+        except:
+            break
+            
+        
+        
+            print('Breaking for loop, Time stamp max ')#reached
+            #happnens sometimes due to rounding error leaving one extra value
+
+        print('plotting time series')
+    
+   
+        
+        #ax2.plot(dtim[1440-diff_time:-diff_time-45],mh_obs[:,0][:,0][1440-diff_time:-105-diff_time-45],label=site)
+        #uncomment above for val
+        if len(rmf)>1:
+            mh_obs_2=mh_obs[len(mh_obs)-len(dtim)-120:len(dtim)]
+            dtim2=[]
+            for i in range(0,len(dtim),60):
+                dtim2.append(dtim[i])
+            dtim2=dtim2
+            ax2.plot(dtim2[diff_time-600:diff_time],mh_obs_2[:,0][:,0][diff_time-600:diff_time],label=str(rmf[0]))
+            ax2.axvline(dtim2[diff_time],linestyle='dashed',linewidth=2)
+            #ax2.axvline(dtim[-diff_time],linestyle='--')
+            
+            #uncomment for realtime VAL
+            #uncomment me for arrows
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:00'))
+            plt.gca().xaxis.set_major_locator(mdates.HourLocator(byhour=range(0,24,6)))
+            plt.legend(loc='upper left')
+            ax2.set_ylabel('Magnetic Field - H (nT)')
+        else:
+            #only one magnetics
+            mh_obs_2=mh_obs[len(mh_obs)-len(dtim)-120:len(dtim)]
+            dtim2=[]
+            for i in range(0,len(dtim),60):
+                dtim2.append(dtim[i])
+            dtim2=dtim2
+            #plotting end of time series and time ticker
+            ax2.plot(dtim2[diff_time-600:diff_time],mh_obs_2[:,0][:,0][diff_time-600:diff_time],label=str(rmf[0]))
+           
+            ax2.axvline(dtim2[diff_time],linestyle='dashed',linewidth=2)
+            #ax2.axvline(dtim[-diff_time],linestyle='--')
+            
+            #uncomment for realtime VAL
+            #uncomment me for arrows
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:00'))
+            plt.gca().xaxis.set_major_locator(mdates.HourLocator(byhour=range(0,24,6)))
+            plt.legend(loc='upper left')
+            ax2.set_ylabel('Magnetic Variation, H (nT)')
+        
+        try:
+            
+            ax2.set_xlim([dtim2[diff_time-600],dtim2[diff_time+40]])
+        except:
+            ax2.set_xlim([dtim2[diff_time-600],dtim2[diff_time]])
+        #Note in log scale from 10-1000
+        
+        cax, _= matplotlib.colorbar.make_axes(ax1)
+        if p_mode=='efield' or p_mode=='galvanic':
+            
+            cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=cm, norm=normalizedB,label= 'Electric Field (mV/km)')
+        if p_mode=='std' or p_mode=='galvanicstd':
+            
+            cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=cm, norm=normalizedB,label= 'Standard Deviation (mV/km)')
+        fig.set_size_inches(6,7)
+    
+        #if nowz.day%2: #
+        #plt.savefig(main_path+'\\latest_efield\\'+str(length3)+'.png')#+str(HOUR[-diff_time][0:2])+str(HOUR[-diff_time][3:5])+'.png')
+        plt.savefig(main_path+'\\latest_efield\\'+str(length3)+str(HOUR[diff_time][0:2])+str(HOUR[diff_time][3:5])+'.png')
+        length3=length3+1
+        #else:
+        #   plt.savefig(main_path+'\\latest_efield\\2'+str(HOUR[-diff_time][0:2])+str(HOUR[-diff_time][3:5])+'.png')
+        save=save+1
+        plt.xlim([-1,1])
+        
+        #plt.ylim([-1,1])
+        print(save)
+        plt.close()
+        
+        for i in e_val_list:
+            total_activity.append(i)   
+        
+        #print('Date ',len(DATE2))
+        #print('Ex len',len(ex_plot))
+        
+    return DATE,HOUR
+def nowcast_mapping_basemap(in_path,main_path,DATE,HOUR,p_mode):
+    #inputting coordinates of sites
+    heat_coord_path=in_path+'sites_interest2.csv'
+    shp_path_IRL = in_path + 'data/Ireland_N&S.shp' 
+    #inputing map of ireland
+    df_c = mpl.inputs.read_coordinates(heat_coord_path, 
+                                       lon_head = 'lon',
+                                       lat_head = 'lat'
+                                       )
+    #inputting coordinates of latitude and longitude for sites
+    lon=df_c.iloc[:,1]
+    lat=df_c.iloc[:,0]
+    (xmin, 
+      xmax, 
+      ymin, 
+      ymax, 
+      r_cell_size, 
+      alpha_v,
+      title1) = mpl.inputs.get_predefined_regional_parameters('Ireland')
+    fig = plt.figure(figsize=(8, 8)) 
+    
+    fig = plt.figure(figsize=(8, 8)) 
+    # gs = gridspec.GridSpec(1, 
+                           # 2, 
+                           # width_ratios=[4, 1], 
+                           # wspace = 0.4
+                           # ) 
+    
+    ax1 = plt.subplot()
+    #ax1 = plt.subplot(gs[0])
+    #ax2 = plt.subplot(gs[1])
+    dates=[]
+    for i in range(0,len(DATE)):
+        dates.append(DATE[i]+HOUR[i])
+    dtim=[datetime.datetime.strptime(x, '%d/%m/%Y%H:%M:%S') for x in dates]
+    #dtim=[datetime.datetime.strptime(x, '%Y-%m-%d%H:%M:%S.000') for x in dates]
+    #set to '%Y-%m-%d%H:%M:%S.000' for INTERMAG
+    
+    save=10000
+    
+    
+    fig = plt.figure(figsize=(8, 8)) 
+    gs = gridspec.GridSpec(2, 
+                           1, 
+                           height_ratios=[4, 1], 
+                           wspace = 0.4
+                           ) 
+    
+    #ax1 = plt.subplot()
+    ax1 = plt.subplot(gs[0])
+    ax2 = plt.subplot(gs[1]) 
+    
+    mpl.imaging.create_background_map(fig,
+                                  ax1,
+                                  shp_path_IRL, 
+                                  xmin, 
+                                  xmax, 
+                                  ymin, 
+                                  ymax, 
+                                  title1, 
+                                  )
+    
+    #m=Basemap(projection='cyl', llcrnrlat=51.0,llcrnrlon=-10.75,urcrnrlat=56,urcrnrlon=-5.25, resolution='l')
+    m=Basemap(projection='merc', llcrnrlat=51.0,llcrnrlon=-10.75,urcrnrlat=56,urcrnrlon=-5.25, resolution='l')
+    m.drawcoastlines(color='black',linewidth=0.5,zorder=11)
+    axis=plt.gca()
+    axis.set_xlim([-11, -5]) 
+    axis.set_ylim([51, 56])
+    length3=10000
+    #reset second to 10000
+    #was 11200
+    #for diff in range(12000,10000+len(av_e_fields)-105):
+    end_index=10000+len(av_e_fields)-padding #the index for rea1time e fields 
+    
+    if end_index-10000-video_length<0:
+        print('Error, video length set too high')
+    
+    for diff in range(end_index-video_length,end_index-3):
+        fig = plt.figure(figsize=(8, 8)) 
+        gs = gridspec.GridSpec(2, 
+                               1, 
+                               height_ratios=[4, 1], 
+                               wspace = 0.4
+                               ) 
+        
+        #ax1 = plt.subplot()
+        ax1 = plt.subplot(gs[0])
+        ax2 = plt.subplot(gs[1])   
+        
+        fig = plt.figure(figsize=(8, 8)) 
+        gs = gridspec.GridSpec(2, 
+                               1, 
+                               height_ratios=[4, 1], 
+                               wspace = 0.4
+                               ) 
+        
+        #ax1 = plt.subplot()
+        ax1 = plt.subplot(gs[0])
+        m=Basemap(projection='cyl', llcrnrlat=51.0,llcrnrlon=-10.75,urcrnrlat=56,urcrnrlon=-5.25, resolution='l')
+        m.drawcoastlines(color='black',linewidth=0.5,zorder=11)
+        
+        lon,lat=m(lon,lat)
+        
+        #ax1.set_facecolor('gray')
+        #Comment in for arrow plots
+        #fig4=plt.figure(figsize=(2.5,2.5))
+        #ax4=plt.subplot()
+        
+       
+        ax1=plt.gca()
+        ax1.set_xlim([-11, -5]) 
+        ax1.set_ylim([51, 56])
+        #ax1.set_facecolor('gray')
+        #'Ortho is ortho
+        
+        #m= Basemap(projection='ortho',lat_0=45,lon_0=0,resolution='h')
+        
+        diff_time=1*(diff-10000)#+1400    
+    
+        e_val_list=[]
+    
+        #adding corretion curve to end of electrics time series
+        #correction ordered from last to first, use -i
+    
+    
+        for vi, ppi in enumerate(e_site):
+            # Total electric field
+        
+            ex_plot = av_e_fields[:,vi,0]
+            ey_plot = av_e_fields[:,vi,1]
+            
+            #correction_c=np.loadtxt(main_path+'scr/corrections.csv',usecols=0)
+            ex_plot_ex=[]
+            ey_plot_ey=[]
+            l=1
+            
+            for i in range(0,len(ex_plot)-105,1): #within range where ex is real
+                if i>(len(ex_plot)-105-len(correction_c)):
+                    ex_plot_ex.append(ex_plot[i]*correction_c[-l]) 
+                    ey_plot_ey.append(ey_plot[i]*correction_c[-l])
+                    l=l+1
+                else:
+                    #when no correction is applied
+                    ex_plot_ex.append(ex_plot[i])
+                    ey_plot_ey.append(ey_plot[i])
+            ex_plot=ex_plot_ex
+            ey_plot=ey_plot_ey
+            ex_plot2=std_error[:,vi,0]
+            ey_plot2=std_error[:,vi,1]
+            #last 105 are fake values from flatline
+            ex_val=ex_plot[diff_time]
+            ey_val=ey_plot[diff_time]
+            
+    
+                
+            #uncomment for std
+            #ex_val=ex_plot2[-165-diff_time]#/ex_plot[-165-diff_time]
+            #ey_val=ey_plot2[-165-diff_time]#/ey_plot[-165-diff_time]
+            
+            e_val=np.sqrt(ex_val**2+ey_val**2)
+            lon_site=[lon[vi]]
+            lat_site=[lat[vi]]
+            
+        
+            
+            
+            #Creating fixed length vectors for plot
+            if ex_val>=0 :
+                
+                xlen=1/(np.sqrt(1+(ex_val/ey_val)**2))
+                
+                
+            
+            if ex_val < 0:
+                
+                
+                
+                xlen=-1.0/(np.sqrt(1+(ex_val/ey_val)**2))
+                
+                
+            if ey_val>=0:
+                
+                
+                
+                ylen=1/(np.sqrt(1+(ey_val/ex_val)**2))    
+                
+            
+            if ey_val < 0:
+                
+                
+                ylen=-1.0/(np.sqrt(1+(ey_val/ex_val)**2))
+        
+        
+            
+            arrow_max=200
+            length=np.log(e_val)/np.log(arrow_max)
+            
+            if length<-1:
+                length=0
+            
+            if length>1:
+                length=1
+            
+            #scaling for arrows
+            
+            dx=xlen*length/3  #sets length of arrow
+            dy=ylen*length/3
+            #dx=25000*xlen*length   #sets length of arrow
+            #dy=25000*ylen*length
+            
+            #arrows now added
+            #-------------------------------------------------------------------------
+            
+            linewidth=1
+            head_width=10000 #15000
+            head_length=6600 #10000
+            
+            head_width=3/20
+            head_length=2/20
+            s=400
+            cm = plt.cm.get_cmap('viridis',10)  
+            #'OrRd'seismic is good also
+            #use ,10 to segment into 10 pieces
+            normalizedB = matplotlib.colors.LogNorm(vmin=5, vmax=10**3)
+            #setting min & max for colorbar, as min max of B_field
+            #setting colours of points to change as B_field_new changes
+            e_val=(ex_val**2+ey_val**2)**(1/2)
+            if e_val <0.01:
+                e_val=0.01 #Log Colourmap doesnt work with 0's
+            e_val_list.append(e_val)
+            colors2=cm(normalizedB(e_val))
+        
+            lon_site,lat_site=m(lon_site[0],lat_site[0])
+            ax1.scatter([lon_site],[lat_site],s=5,color='white',edgecolor='white',zorder=10)
+            #Setting limit over which arrows are drwan
+            if p_mode=='galvanic' or p_mode=='efield':
+                arrow_thres=20
+            if p_mode=='std' or p_mode=='galvanicstd':
+                arrow_thres=100000000000000 #no arrow will be plotted
+            if e_val>20: #set to >1000 to turn off for std
+                ax1.arrow(lon_site,lat_site,dx,dy,fc="white", ec="white", 
+                          linewidth = linewidth, head_width=head_width,
+                          head_length=head_length,zorder=10)   
+                #include for arrows direction plot
+                
+                #ax4.arrow(0,0,xlen*length,ylen*length,fc="black", ec="black", 
+                #      linewidth = linewidth,
+                #      zorder=10)  
+            #plt.xlim([-1,1])
+            #plt.ylim([-1,1])
+            #plt.savefig('Arrowplot.png')
+    
+        
+        # # create_background figure with map location
+        lon=np.array(lon)
+        lat=np.array(lat)
+        
+        lat2=[]
+        lon2=[]
+        for i in lat:
+            lat2.append(i)
+        for i in lon:
+            lon2.append(i)
+        lat=lat2
+        lon=lon2
+        
+        
+        x,y=(lon,lat)
+        
+        x=np.array(x)
+        y=np.array(y)
+        
+        
+        xi = np.linspace(-12, -5, 50)
+        yi = np.linspace(50, 58, 50)
+        
+        xi2=[]
+        yi2=[]
+        
+        for a, b in zip(xi,yi):
+
+            a2,b2=m(a,b)
+            xi2.append(a2)
+            yi2.append(b2)
+        
+        xi,yi=xi2,yi2
+        
+        xi,yi=m(xi,yi)
+        xi, yi = np.meshgrid(xi, yi)
+        
+        #meshgrid no longer converts to basemap coords in new version so needs to be done manually
+        #xi,yi=m(xi,yi)
+        
+        z2=[]
+        for i in e_val_list:
+        
+            z2.append(np.log(abs(i)))
+        
+        
+        
+        zi = griddata(m(lon, lat), z2, (xi, yi),method='cubic')
+
+        nans, p = nan_helper(zi)
+        zi[nans]= np.interp(p(nans), p(~nans), zi[~nans])
+        
+        
+        #gaussian filter applied to smooth local anomalies
+        zi= ndimage.gaussian_filter(zi, 
+                                   sigma=5.0, 
+                                   order=0)
+        
+        var_1 = ax1.contourf(xi, 
+                         yi,
+                         zi, 
+                         zorder=2, 
+                         alpha=0.9,
+                         cmap=cm,
+                         vmin=0.1,
+                         vmax=6.9,
+                         interpolation='cubic'
+                         )
+    
+
+
+
+        #plt.contourf(xi, yi, zi,vmin=1.6,vmax=6.9,cmap='viridis')
+        
+        ax2 = plt.subplot(gs[1]) 
+
+        #plotting map
+        #fig, ax = plt.subplots() #needed to name plots
+        fontsize=11
+        plt.rc('font', size=11)
+        #ax1.set_facecolor('#8A959B')
+        #ax1.axes.get_xaxis().set_visible(False)
+        #ax1.axes.get_yaxis().set_visible(False)
+        plt.grid(False)
+    
+        DATE2=[]
+        HOUR2=[]
+        for i in range(0,len(DATE),60):
+            DATE2.append(DATE[i])
+            HOUR2.append(HOUR[i])
+        try:
+            ax1.set_title(''+str(DATE2[diff_time])+' '+str(HOUR2[diff_time][0:6])+'00 UT')
+        except:
+            break
+            print('Breaking for loop, Time stamp max reached')
+            #happnens sometimes due to rounding error leaving one extra value
+
+        #plotting time series
+    
+         
+        
+        #ax2.plot(dtim[1440-diff_time:-diff_time-45],mh_obs[:,0][:,0][1440-diff_time:-105-diff_time-45],label=site)
+        #uncomment above for val
+        mh_obs_2=mh_obs[len(mh_obs)-len(dtim)-120:len(dtim)]
+
+        dtim2=[]
+        for i in range(0,len(dtim),60):
+            dtim2.append(dtim[i])
+        dtim2=dtim2
+        ax2.plot(dtim2[diff_time-600:diff_time],mh_obs_2[:,0][:,0][diff_time-600:diff_time],label='ARM')
+        ax2.axvline(dtim2[diff_time],linestyle='dashed',linewidth=2)
+        #ax2.axvline(dtim[-diff_time],linestyle='--')
+        
+        #uncomment for realtime VAL
+        #uncomment me for arrows
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:00'))
+        plt.gca().xaxis.set_major_locator(mdates.HourLocator(byhour=range(0,24,6)))
+        plt.legend(loc='upper left')
+        ax2.set_ylabel('Magnetic Variation, H (nT)')
+        
+        try:
+            
+            ax2.set_xlim([dtim2[diff_time-600],dtim2[diff_time+40]])
+        except:
+            ax2.set_xlim([dtim2[diff_time-600],dtim2[diff_time]])
+        #Note in log scale from 10-1000
+        
+        cax, _= matplotlib.colorbar.make_axes(ax1)
+        if p_mode=='efield' or p_mode=='galvanic':
+            
+            cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=cm, norm=normalizedB,label= 'Electric Field (mV/km)')
+        if p_mode=='std' or p_mode=='galvanicstd':
+            
+            cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=cm, norm=normalizedB,label= 'Standard Deviation (mV/km)')
+        fig.set_size_inches(6,7)
+    
+        #if nowz.day%2: #
+        #plt.savefig(main_path+'\\latest_efield\\'+str(length3)+'.png')#+str(HOUR[-diff_time][0:2])+str(HOUR[-diff_time][3:5])+'.png')
+        plt.savefig(main_path+'\\latest_efield\\'+str(length3)+str(HOUR[diff_time][0:2])+str(HOUR[diff_time][3:5])+'.png')
+        length3=length3+1
+        #else:
+        #   plt.savefig(main_path+'\\latest_efield\\2'+str(HOUR[-diff_time][0:2])+str(HOUR[-diff_time][3:5])+'.png')
+        save=save+1
+        plt.xlim([-1,1])
+        #plt.ylim([-1,1])
+        print(save)
+        plt.close()
+        
+        for i in e_val_list:
+            total_activity.append(i)   
+
+    return DATE,HOUR
