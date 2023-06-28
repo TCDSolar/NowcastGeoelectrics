@@ -54,7 +54,7 @@ import os
 os.environ['PROJ_LIB'] = ""
 import numpy as np
 import matplotlib.pyplot as plt
-import functions_EM_modelling_houdini as femm
+import functions_EM_modelling as femm
 import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
