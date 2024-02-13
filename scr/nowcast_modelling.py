@@ -46,7 +46,7 @@ Geopandas install instructions:
     o Geopandas currently cannot being installed properly at the moment
     o Current version only works on Windows
     o Install instructions https://hatarilabs.com/ih-en/how-to-install-python-geopandas-on-anaconda-in-windows-tutorial (download files in currect order)
-    o Alternativey, use Basemap or other mapping modules, with Basemap alternative function nowcast_mapping_basemap provided
+    o Alternatively, use Basemap or other mapping modules, with Basemap alternative function nowcast_mapping_basemap provided
 
 """
 import os
