@@ -30,7 +30,7 @@ Altgorithm related to Campanya et al. 2018 publication in Space Weather AGU Jour
 ##############################################################################
 Realtime Script v1:
 
-Script by J Malone-Leigh updated from script by Campnaya 2019 to work in real-time
+Script by J Malone-Leigh updated from script by Campanya 2019 to work in real-time
 
 Changes:
 1) Reads in MagIE file format and INTERMAGNET format
