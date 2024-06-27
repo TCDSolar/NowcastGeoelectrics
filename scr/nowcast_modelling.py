@@ -8,7 +8,7 @@ from magnetic observatories and geophysical parameters
  Original author: Joan Campanya i Llovet (Trinity College Dublin) [joan.campanya@tcd.ie]
  08 - 2018, Dublin, Ireland.
  
- Adapated for real-time by John Malone-Leigh [jmalone@cp.dias.ie]
+ Adapated for real-time plotting by John Malone-Leigh [jmalone@cp.dias.ie]
 
  Inputs ("in" folder)
    1) Sites of interest where to measure E fields ('sites_interest.dat')
@@ -30,7 +30,7 @@ Altgorithm related to Campanya et al. 2018 publication in Space Weather AGU Jour
 ##############################################################################
 Realtime Script v1:
 
-Script by J Malone-Leigh updated from script by Campanya 2019 to work in real-time
+Script by J Malone-Leigh updated from script by Campanya 2019 to work in real time
 
 Changes:
 1) Reads in MagIE file format and INTERMAGNET format
@@ -44,7 +44,7 @@ Changes:
                                                           
 Geopandas install instructions: 
     o Geopandas currently cannot being installed properly at the moment
-    o Current version only works on Windows
+    o Current version only works on Windows (and sometimes Mac).
     o Install instructions https://hatarilabs.com/ih-en/how-to-install-python-geopandas-on-anaconda-in-windows-tutorial (download files in currect order)
     o Alternatively, use Basemap or other mapping modules, with Basemap alternative function nowcast_mapping_basemap provided
 
