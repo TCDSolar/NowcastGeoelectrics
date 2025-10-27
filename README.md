@@ -1,6 +1,3 @@
-# Nowcasting Geoelectric Fields
-Note: Scripts are currently being adapted for general use and full versions, with working examples for previous storms upon completion. Currently the scripts will download real-time data from the MagIE website and plot realtime conditions.
-
 Scripts for nowcasting geoelectric fields across Ireland are currently being optimised. Scripts adapted from previous work by Campanya et al 2018 (see https://github.com/joancampanya/Compute_GeoElectric_Fields). Python scripts are found in the "scr" folder.
 
 # Using the Model
