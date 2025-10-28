@@ -79,7 +79,7 @@ class inputs():
         return(df_2, 
                sites
                )
-    
+    #ITM corresponds to Irish Transverse Mercator
     #######################################################################
     def read_coordinates(path, 
                          lon_head = 'X_WGS84',
