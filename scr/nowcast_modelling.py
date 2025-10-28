@@ -420,7 +420,7 @@ DATE,HOUR=femm.nowcast_mapping(in_path,main_path,DATE,HOUR,p_mode,av_e_fields,
                             mh_obs,total_activity,padding,rmf)     
 
 #uncomment bottom to use basemap
-# DATE,HOUR=nowcast_mapping_basemap(in_path,main_path,DATE,HOUR,p_mode)  
+# DATE,HOUR=femm.nowcast_mapping_basemap(in_path,main_path,DATE,HOUR,p_mode)  
 
 #-----------------
 #creating histogram of storm activity
