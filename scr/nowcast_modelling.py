@@ -187,7 +187,7 @@ if avoid_comp_secs != 1: # In case it was computed already
     print('interpolate magnetic fields using SECS')
     
     if len(rmf) >1:
-        exec(open("SECS_interpolation_houdini.py").read())
+        exec(open("SECS_interpolation.py").read())
         #from SECS_interpolation_houdini import SECS_Interpolation
         #obs_bx_secs,obs_by_secs=SECS_Interpolation(out_path,secswest,secssouth,secsnorth,secseast,
         #               length,lons_secs,lats_secs)
