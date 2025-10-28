@@ -15,7 +15,7 @@ from multiprocessing import Pool
 import inputs as iEM
 import numpy as np
 from scipy.interpolate import griddata
-from secs_pre_now import cart2sph_matlab, sph2cart_matlab, pole_common2source,pole_source2common, sourcecords, secsmatrix_XYonly
+from secs_pre import cart2sph_matlab, sph2cart_matlab, pole_common2source,pole_source2common, sourcecords, secsmatrix_XYonly
     
 
 
