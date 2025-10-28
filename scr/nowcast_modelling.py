@@ -72,7 +72,7 @@ import cv2
 import os
 from os.path import isfile, join
 import shutil
-import inputs_houdini as inp
+import inputs as inp
 # disable speedups to make shapely not break later, when making maps
 speedups.disable() 
 plt.close('all')
