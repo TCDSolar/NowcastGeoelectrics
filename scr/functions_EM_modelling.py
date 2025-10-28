@@ -629,7 +629,7 @@ def mag_filter(Bx,By,Bz):
         Bznew=[]
         for j in range(0,len(dF)-60,60):
             if max(dF[j:j+60])>10: #nT/sec=10 for 1 sec
-                array=np.full(shape=60,fill_value=99999.99,dtype=np.float)
+                array=np.full(shape=60,fill_value=99999.99,dtype=float)
                 for k in array:
                     Bxnew.append(k)
                     Bynew.append(k)
@@ -642,7 +642,7 @@ def mag_filter(Bx,By,Bz):
         #need to include last values, i.e the last <60 secs
         if len(dF)>len(Bxnew):
             if max(dF[len(Bxnew):len(dF)])>10: #nT/sec=10 for 1 sec
-                array=np.full(shape=len(dF)-len(Bxnew)+1,fill_value=99999.99,dtype=np.float)
+                array=np.full(shape=len(dF)-len(Bxnew)+1,fill_value=99999.99,dtype=float)
                 #+1 account for last value
                 for k in array:
                     Bxnew.append(k)
